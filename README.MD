@@ -125,15 +125,15 @@ dbbackup backup -u <username> -d <database_name>
 
 #### Backup options
 
-| Option | Long form | Required | Default | Description |
-|---|---|:---:|---|---|
-| `-u` | `--user` | Yes | — | Database username, such as `root`. |
-| `-d` | `--db` | Yes | — | Name of the database to back up. |
-| `-p` | `--pass` | No | — | Database password. Prefer `DB_PASSWORD` or the hidden prompt. |
-| `-H` | `--host` | No | `localhost` | Database server host. |
-| `-P` | `--port` | No | `3306` | Database server port. |
-| `-o` | `--output` | No | `./backups` | Directory in which to store backup archives. |
-| `-s` | `--slack` | No | — | Slack incoming webhook URL for completion notifications. |
+| Option | Long form  | Required | Default     | Description                                                   |
+| ------ | ---------- | :------: | ----------- | ------------------------------------------------------------- |
+| `-u`   | `--user`   |   Yes    | —           | Database username, such as `root`.                            |
+| `-d`   | `--db`     |   Yes    | —           | Name of the database to back up.                              |
+| `-p`   | `--pass`   |    No    | —           | Database password. Prefer `DB_PASSWORD` or the hidden prompt. |
+| `-H`   | `--host`   |    No    | `localhost` | Database server host.                                         |
+| `-P`   | `--port`   |    No    | `3306`      | Database server port.                                         |
+| `-o`   | `--output` |    No    | `./backups` | Directory in which to store backup archives.                  |
+| `-s`   | `--slack`  |    No    | —           | Slack incoming webhook URL for completion notifications.      |
 
 #### Example
 
@@ -169,12 +169,12 @@ dbbackup restore -u <username> -d <database_name> -f <archive_path>
 
 #### Restore options
 
-| Option | Long form | Required | Default | Description |
-|---|---|:---:|---|---|
-| `-u` | `--user` | Yes | — | Database username, such as `root`. |
-| `-d` | `--db` | Yes | — | Target database into which the archive will be restored. |
-| `-f` | `--file` | Yes | — | Path to a `.sql` or `.sql.gz` archive. |
-| `-p` | `--pass` | No | — | Database password. Prefer `DB_PASSWORD` or the hidden prompt. |
+| Option | Long form | Required | Default | Description                                                   |
+| ------ | --------- | :------: | ------- | ------------------------------------------------------------- |
+| `-u`   | `--user`  |   Yes    | —       | Database username, such as `root`.                            |
+| `-d`   | `--db`    |   Yes    | —       | Target database into which the archive will be restored.      |
+| `-f`   | `--file`  |   Yes    | —       | Path to a `.sql` or `.sql.gz` archive.                        |
+| `-p`   | `--pass`  |    No    | —       | Database password. Prefer `DB_PASSWORD` or the hidden prompt. |
 
 #### Example
 
@@ -265,6 +265,11 @@ Check the username, host, port, and password. If using an environment variable, 
 ### A lock file remains after an interrupted run
 
 First confirm that no other `dbbackup` process is still running. Only remove the lock file after verifying that the previous process has terminated and that no operation is still writing to the backup or restore target.
+
+## Roadmap
+
+Did this project as a challennge for roadmap
+https://roadmap.sh/projects/database-backup-utility
 
 ## License
 
