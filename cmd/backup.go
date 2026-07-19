@@ -130,7 +130,7 @@ func init() {
 	backupCmd.Flags().StringVarP(&dbname, "db", "d", "", "Database name")
 	backupCmd.Flags().StringVarP(&storageDir, "output", "o", "./backups", "Local target backup directory")
 	backupCmd.Flags().StringVarP(&slackWebhook, "slack", "s", "", "Slack App incoming Webhook URL link (optional)")
-	
+
 	// Added Retention Policy Configuration Flags
 	backupCmd.Flags().IntVarP(&maxDays, "retain-days", "r", 0, "Prune archives older than this threshold window in calendar days")
 	backupCmd.Flags().IntVarP(&keepCount, "retain-count", "c", 0, "Enforce strict ceiling total on number of archival history loops kept")

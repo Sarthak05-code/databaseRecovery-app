@@ -44,7 +44,7 @@ func init() {
 	restoreCmd.Flags().StringVarP(&password, "pass", "p", "", "Database password")
 	restoreCmd.Flags().StringVarP(&dbname, "db", "d", "", "Database name")
 	restoreCmd.Flags().StringVarP(&backupFilePath, "file", "f", "", "Target backup path (.sql.gz)")
-	
+
 	restoreCmd.MarkFlagRequired("file")
 	rootCmd.AddCommand(restoreCmd)
 }
