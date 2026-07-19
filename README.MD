@@ -1,276 +1,270 @@
-# Database Backup & Recovery CLI Tool (`dbbackup`)
+Database Backup & Recovery Hub (db-backup-cli)
+A production-ready, high-performance database management utility written in Go for automated MySQL/MariaDB backups and disaster recovery.
 
-A production-ready, high-performance command-line utility written in Go for automated MySQL/MariaDB backups and disaster recovery. `dbbackup` supports full database dumps, streaming gzip compression, structured JSON audit trails, retry handling, secure password input, and restore workflows.
+db-backup-cli supports two operating modes:
 
-## Features
+A flexible, Cobra-based command-line interface for manual and cron-friendly operations.
+A local web dashboard for interactive backup and restore management.
+Features
+Dual run modes — Run immediate, automation-friendly commands from a terminal or start a local web dashboard.
+Native database pipelines — Uses the system mysqldump and mysql client utilities for database structure and data processing.
+Streaming gzip compression — Streams dump output directly into .sql.gz archives, avoiding large intermediate SQL files.
+Secure credential handling — Supports explicit parameters, the DB_PASSWORD environment variable, hidden terminal prompts, and masked web-form inputs.
+Concurrency protection — Uses dbbackup_operation.lock to prevent simultaneous operations from corrupting shared files or database state.
+Graceful interruption handling — Captures operating-system interrupts, including Ctrl+C, and cleans up locks and temporary files before exiting.
+Automatic database provisioning — Creates the target database during restoration when it does not already exist.
+Fault-tolerant retries — Retries eligible backup and restore operations up to three times when transient failures occur.
+Structured audit logging — Writes newline-delimited JSON records containing action types, statuses, durations, and errors to backup_activity.log.
+Slack notifications — Optionally sends operation completion notifications to a configured Slack incoming webhook.
+Project Architecture
+text
 
-- **Native database dumps** — Uses the native `mysqldump` and `mysql` client utilities for reliable schema and data extraction.
-- **Streaming gzip compression** — Compresses backup data on the fly and writes directly to `.sql.gz` archives without creating large intermediate SQL files in memory.
-- **Secure password handling** — Resolves credentials from the `DB_PASSWORD` environment variable or prompts for the password through hidden terminal input. Passwords should not be passed on the command line in production.
-- **Concurrency protection** — Uses an active `.lock` file to prevent concurrent operations from causing race conditions or data corruption.
-- **Graceful interruption handling** — Listens for operating-system interrupts, including `Ctrl+C`, and cleans up temporary resources and locks before exiting.
-- **Automatic database provisioning** — Creates the target database during restoration when it does not already exist.
-- **Transient fault resilience** — Retries backup and restore operations up to three times with exponential backoff after temporary failures.
-- **Structured audit logging** — Records actions, timestamps, statuses, durations, and performance metrics in `backup_activity.log` as JSON entries.
-- **Slack notifications** — Optionally sends completion notifications to a Slack incoming webhook.
+db-backup-cli/
+├── cmd/
+│   ├── backup.go        # CLI backup command, parameters, and flags
+│   ├── restore.go       # CLI restore command and configuration
+│   ├── root.go          # Cobra application initialization
+│   └── server.go        # Web server and dashboard API endpoints
+├── pkg/
+│   ├── db/
+│   │   ├── db.go        # Database interfaces and core types
+│   │   └── mysql.go     # MySQL/MariaDB client execution logic
+│   ├── storage/
+│   │   └── storage.go   # Backup storage and directory management
+│   └── utils/
+│       ├── compress.go  # Streaming gzip compression and extraction
+│       ├── logger.go    # Structured JSON audit logging
+│       └── notifier.go  # Slack notification delivery
+├── web/
+│   ├── index.html       # Web dashboard interface
+│   └── app.js           # Frontend logic and API requests
+├── main.go              # Application entry point
+├── go.mod               # Go module definition
+└── backup_activity.log  # Generated audit log; created at runtime
+The exact structure may vary if additional packages, tests, or configuration files are added.
 
-## Requirements
+Requirements
+Go
+Install a current stable release of the Go programming language.
 
-### Go
+MySQL or MariaDB client tools
+The following executables must be installed and available through the operating system's PATH:
 
-Install a recent version of [Go](https://go.dev/dl/).
+mysql
+mysqldump
+Verify the installation with:
 
-### MySQL or MariaDB client utilities
+Bash
 
-The following commands must be available on your system's `PATH`:
+mysql --version
+mysqldump --version
+Linux — Debian or Ubuntu
+Bash
 
-- `mysql`
-- `mysqldump`
-
-#### Windows
-
-Install MySQL or MySQL Workbench and ensure the directory containing `mysql.exe` and `mysqldump.exe` is included in `PATH`. For example:
-
-```text
-C:\Program Files\MySQL\MySQL Server 8.0\bin
-```
-
-> The exact installation path may vary depending on the MySQL version and installation method.
-
-#### Linux
-
-Install the MySQL client package using your distribution's package manager. For Debian or Ubuntu:
-
-```bash
 sudo apt update
-sudo apt install mysql-client
-```
+sudo apt install -y mysql-client
+macOS — Homebrew
+Bash
 
-#### macOS
-
-Install the MySQL client with Homebrew:
-
-```bash
 brew install mysql-client
-```
+Homebrew may print instructions for adding the client binaries to your PATH. Follow those instructions if the commands are not found after installation.
 
-You may need to add the Homebrew client binaries to your `PATH`.
+Windows
+Install MySQL Community Server, MySQL Workbench, or another compatible MySQL client package. Add the directory containing mysql.exe and mysqldump.exe to PATH.
 
-## Installation and Compilation
+A common installation path is:
 
-From the project root—the directory containing `main.go`—download the terminal input dependency and build the executable:
+text
 
-```bash
+C:\Program Files\MySQL\MySQL Server 8.0\bin
+The path may differ depending on the installed MySQL version.
+
+Build and Installation
+Clone or copy the project, then change to its root directory—the directory containing main.go and go.mod.
+
+Download and resolve dependencies:
+
+Bash
+
+go mod tidy
+If the project uses terminal password prompts through golang.org/x/term and the dependency is not already declared in go.mod, add it with:
+
+Bash
+
 go get golang.org/x/term
 go mod tidy
-```
+Build for Windows
+Bash
 
-### Windows
-
-```bash
 go build -o dbbackup.exe .
-```
+Build for Linux or macOS
+Bash
 
-### Linux and macOS
-
-```bash
 go build -o dbbackup .
-```
+Authentication and Password Security
+Avoid passing passwords with --pass whenever possible. Command-line arguments can be visible to other processes or stored in shell history.
 
-## Authentication
+Environment variable
+Set DB_PASSWORD for the current shell session.
 
-The password can be supplied in one of two secure ways.
+Linux/macOS
+Bash
 
-### Environment variable
+export DB_PASSWORD='secure_password_here'
+Windows PowerShell
+PowerShell
 
-Set `DB_PASSWORD` before running the command:
+$env:DB_PASSWORD = 'secure_password_here'
+Windows Command Prompt
+cmd
 
-#### Windows PowerShell
+set DB_PASSWORD=secure_password_here
+Hidden interactive prompt
+If DB_PASSWORD is not set and no password is provided with --pass, the application prompts for the password without displaying the typed characters:
 
-```powershell
-$env:DB_PASSWORD = "your-database-password"
-```
+text
 
-#### Windows Command Prompt
-
-```cmd
-set DB_PASSWORD=your-database-password
-```
-
-#### Linux/macOS
-
-```bash
-export DB_PASSWORD='your-database-password'
-```
-
-### Hidden interactive prompt
-
-If `DB_PASSWORD` is not set and no password is provided with `--pass`, the tool prompts for the password using hidden terminal input:
-
-```text
 Enter Database Password:
-```
+Usage
+After building the project, use ./dbbackup on Linux/macOS or dbbackup.exe on Windows.
 
-> Avoid passing passwords with `--pass` where possible because command-line arguments may be visible to other processes or stored in shell history.
+Start the web dashboard
+Start the local web application with:
 
-## Usage
+Bash
 
-### Create a compressed backup
+./dbbackup server
+On Windows:
 
-Run a full backup with a timestamped `.sql.gz` archive:
+PowerShell
 
-```bash
-dbbackup backup -u <username> -d <database_name>
-```
+.\dbbackup.exe server
+Expected console output:
 
-#### Backup options
+text
 
-| Option | Long form  | Required | Default     | Description                                                   |
-| ------ | ---------- | :------: | ----------- | ------------------------------------------------------------- |
-| `-u`   | `--user`   |   Yes    | —           | Database username, such as `root`.                            |
-| `-d`   | `--db`     |   Yes    | —           | Name of the database to back up.                              |
-| `-p`   | `--pass`   |    No    | —           | Database password. Prefer `DB_PASSWORD` or the hidden prompt. |
-| `-H`   | `--host`   |    No    | `localhost` | Database server host.                                         |
-| `-P`   | `--port`   |    No    | `3306`      | Database server port.                                         |
-| `-o`   | `--output` |    No    | `./backups` | Directory in which to store backup archives.                  |
-| `-s`   | `--slack`  |    No    | —           | Slack incoming webhook URL for completion notifications.      |
+Dashboard UI running at http://localhost:8080
+Open http://localhost:8080 in a browser.
 
-#### Example
+The dashboard is intended to run locally unless the application explicitly provides authentication and network-access controls. Do not expose an unauthenticated administrative interface to an untrusted network.
 
-```bash
-dbbackup backup -u root -d company_db
-```
+Create a compressed backup
+Bash
 
+./dbbackup backup -u <username> -d <database_name> [flags]
+On Windows:
+
+PowerShell
+
+.\dbbackup.exe backup -u <username> -d <database_name> [flags]
+Backup options
+Short	Long	Required	Default	Description
+-u	--user	Yes	—	Database username, such as root.
+-d	--db	Yes	—	Name of the database to back up.
+-p	--pass	No	—	Database password. Prefer DB_PASSWORD or the hidden prompt.
+-H	--host	No	localhost	Database server hostname or IP address.
+-P	--port	No	3306	Database server port.
+-o	--output	No	./backups	Directory in which to store backup archives.
+-s	--slack	No	—	Slack incoming webhook URL for completion notifications.
+Example:
+
+Bash
+
+./dbbackup backup -u root -d shop_db -o ./my_backups
 Example output:
 
-```text
+text
+
 Enter Database Password:
-Success! Backup archive safely stored at: backups/company_db_20260719_125816.sql.gz (Time taken: 3.9753092s)
-```
+Success! Backup archive safely stored at: my_backups/shop_db_20260719_183501.sql.gz (Time taken: 1.1425s)
+Backup archives use a timestamped naming convention similar to:
 
-To specify a custom host, port, and output directory:
+text
 
-```bash
-dbbackup backup \
-  --user backup_user \
-  --db company_db \
-  --host 127.0.0.1 \
-  --port 3306 \
-  --output ./backups
-```
+<database>_YYYYMMDD_HHMMSS.sql.gz
+Restore a database archive
+Restore either an uncompressed .sql file or a gzip-compressed .sql.gz file:
 
-### Restore an archive
+Bash
 
-Restore an existing `.sql` or `.sql.gz` archive into a database:
+./dbbackup restore -u <username> -d <database_name> -f <archive_path>
+On Windows:
 
-```bash
-dbbackup restore -u <username> -d <database_name> -f <archive_path>
-```
+PowerShell
 
-#### Restore options
+.\dbbackup.exe restore -u <username> -d <database_name> -f <archive_path>
+Restore options
+Short	Long	Required	Default	Description
+-u	--user	Yes	—	Database username.
+-d	--db	Yes	—	Target database for restoration.
+-f	--file	Yes	—	Path to a .sql or .sql.gz archive.
+-p	--pass	No	—	Database password. Prefer DB_PASSWORD or the hidden prompt.
+Example:
 
-| Option | Long form | Required | Default | Description                                                   |
-| ------ | --------- | :------: | ------- | ------------------------------------------------------------- |
-| `-u`   | `--user`  |   Yes    | —       | Database username, such as `root`.                            |
-| `-d`   | `--db`    |   Yes    | —       | Target database into which the archive will be restored.      |
-| `-f`   | `--file`  |   Yes    | —       | Path to a `.sql` or `.sql.gz` archive.                        |
-| `-p`   | `--pass`  |    No    | —       | Database password. Prefer `DB_PASSWORD` or the hidden prompt. |
+Bash
 
-#### Example
-
-```bash
-dbbackup restore \
+./dbbackup restore \
   -u root \
-  -d company_db \
-  -f backups/company_db_20260719_125816.sql.gz
-```
-
+  -d shop_db \
+  -f ./backups/shop_db_20260719_183501.sql.gz
 Example output:
 
-```text
+text
+
 Enter Database Password:
 Attempting database restore...
 Database restored successfully
-```
+Before restoring production data, verify that the archive is valid and that the target database and credentials are correct. A restore may overwrite existing data depending on the contents of the SQL dump.
 
-During restoration, the tool automatically creates the target database if it does not exist, then streams and imports the archive contents.
+Audit Logging
+Each operation appends a newline-delimited JSON object to backup_activity.log:
 
-## Audit Logging
+JSON
 
-Each backup and restore operation appends a structured JSON record to `backup_activity.log`:
+{"timestamp":"2026-07-19T18:35:02+05:45","action":"BACKUP","status":"SUCCESS","duration":"1.142512s"}
+{"timestamp":"2026-07-19T18:42:11+05:45","action":"RESTORE","status":"SUCCESS","duration":"2.410985s"}
+Each log record may contain additional fields when an operation fails, such as an error message or retry information.
 
-```json
-{
-  "timestamp": "2026-07-19T12:58:17+05:45",
-  "action": "BACKUP",
-  "status": "SUCCESS",
-  "duration": "3.9753092s"
-}
-```
+Inspect the log with:
 
-Inspect the audit log with the appropriate terminal command:
+Windows Command Prompt
+cmd
 
-### Windows Command Prompt
-
-```cmd
 type backup_activity.log
-```
+Linux/macOS
+Bash
 
-### Linux/macOS
-
-```bash
 cat backup_activity.log
-```
+Protect the audit log because operational errors or notification details may contain sensitive environment information.
 
-The log can be ingested by monitoring, compliance, or centralized logging systems that support newline-delimited JSON records.
+Locking and Cleanup
+The application uses dbbackup_operation.lock to prevent multiple backup or restore operations from running concurrently.
 
-## Backup File Naming
+If a lock remains after an interrupted process:
 
-Backups are written using a timestamped naming convention similar to:
+Confirm that no dbbackup process is still running.
+Confirm that no backup or restore operation is actively writing data.
+Remove the stale lock only after both checks are complete.
+Notifications
+A Slack incoming webhook can be supplied for backup completion notifications using the --slack option:
 
-```text
-<database>_YYYYMMDD_HHMMSS.sql.gz
-```
+Bash
 
-Example:
+./dbbackup backup \
+  -u root \
+  -d shop_db \
+  --slack "$SLACK_WEBHOOK_URL"
+Store webhook URLs in protected environment variables or a secret manager. Do not commit webhook URLs to source control.
 
-```text
-backups/company_db_20260719_125816.sql.gz
-```
+Operational Recommendations
+Grant the database user only the permissions required for backup and restoration.
+Store backups on a separate disk, host, or remote storage provider.
+Test restoration regularly instead of assuming that a successful backup is restorable.
+Restrict permissions on the backup directory, lock file, and audit log.
+Exclude .sql, .sql.gz, .lock, and sensitive log files from source control.
+Do not expose the web dashboard outside a trusted network without authentication and appropriate access controls.
+Roadmap.sh Challenge
+This project was designed with reference to the Roadmap.sh Database Backup Utility Project.
 
-## Operational Safety
-
-- Verify that the database user has the permissions required for dumping, creating databases, and restoring data.
-- Protect the backup directory and audit log with appropriate filesystem permissions.
-- Store backups on a separate disk or remote storage location for protection against host failure.
-- Test restoration regularly; a backup is only useful if it can be restored successfully.
-- Do not commit `.sql`, `.sql.gz`, password files, or audit logs containing sensitive information to source control.
-- Configure Slack webhook URLs through a secret manager or protected environment variable rather than committing them to scripts or repositories.
-
-## Troubleshooting
-
-### `mysql` or `mysqldump` cannot be found
-
-Confirm that both client binaries are installed and available on `PATH`:
-
-```bash
-mysql --version
-mysqldump --version
-```
-
-### Authentication fails
-
-Check the username, host, port, and password. If using an environment variable, verify that it is set in the same shell session that launches `dbbackup`.
-
-### A lock file remains after an interrupted run
-
-First confirm that no other `dbbackup` process is still running. Only remove the lock file after verifying that the previous process has terminated and that no operation is still writing to the backup or restore target.
-
-## Roadmap
-
-Did this project as a challennge for roadmap
-https://roadmap.sh/projects/database-backup-utility
-
-## License
-
-empty for now
+License
+This project is licensed under the MIT License. See the LICENSE file for the full license text.
