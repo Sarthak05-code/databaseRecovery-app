@@ -18,6 +18,8 @@ var (
 	host, port, user, password, dbname string
 	storageDir                         string
 	slackWebhook                       string
+	maxDays                            int
+	keepCount                          int
 )
 
 var backupCmd = &cobra.Command{
@@ -102,6 +104,18 @@ var backupCmd = &cobra.Command{
 		successMsg := fmt.Sprintf("Success! Backup archive safely stored at: %s (Time taken: %s)", finalPath, elapsed)
 		fmt.Println(successMsg)
 
+		// 4. Enforce Retention Rules Policy Sweep
+		policy := storage.RetentionPolicy{
+			MaxDays:   maxDays,
+			KeepCount: keepCount,
+		}
+		pruned, pruneErr := storage.PruneOldBackups(storageDir, dbname, policy)
+		if pruneErr != nil {
+			fmt.Printf("Warning: Dynamic policy sweep failed: %v\n", pruneErr)
+		} else if pruned > 0 {
+			fmt.Printf("Retention sweep complete. Cleared %d expired historical assets.\n", pruned)
+		}
+
 		if slackWebhook != "" {
 			utils.SendSlackNotification(slackWebhook, fmt.Sprintf("✅ Database Backup Job Complete for %s. Destination: %s", dbname, finalPath))
 		}
@@ -116,6 +130,10 @@ func init() {
 	backupCmd.Flags().StringVarP(&dbname, "db", "d", "", "Database name")
 	backupCmd.Flags().StringVarP(&storageDir, "output", "o", "./backups", "Local target backup directory")
 	backupCmd.Flags().StringVarP(&slackWebhook, "slack", "s", "", "Slack App incoming Webhook URL link (optional)")
+	
+	// Added Retention Policy Configuration Flags
+	backupCmd.Flags().IntVarP(&maxDays, "retain-days", "r", 0, "Prune archives older than this threshold window in calendar days")
+	backupCmd.Flags().IntVarP(&keepCount, "retain-count", "c", 0, "Enforce strict ceiling total on number of archival history loops kept")
 
 	rootCmd.AddCommand(backupCmd)
 }
