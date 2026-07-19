@@ -3,34 +3,37 @@ package cmd
 import (
 	"db-backup-cli/pkg/db"
 	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
-var (
-	restoreFile string
-)
+var backupFilePath string
 
 var restoreCmd = &cobra.Command{
 	Use:   "restore",
-	Short: "Restore a databse from an uncompressed backup file",
+	Short: "Restore an archive directly into target schema",
 	Run: func(cmd *cobra.Command, args []string) {
+		resolvedPassword, err := db.ResolvePassword(password)
+		if err != nil {
+			fmt.Println("Authentication Setup Error:", err)
+			return
+		}
+
 		client := &db.MysqlClient{}
-		config := db.BackupConfig{
+		// Updated to use MysqlBackupConfig
+		config := db.MysqlBackupConfig{
 			Host:     host,
 			Port:     port,
 			Username: user,
-			Password: password,
+			Password: resolvedPassword,
 			DBname:   dbname,
 		}
 
 		fmt.Println("Attempting database restore...")
-		err := client.RestoreBackup(config, restoreFile)
-		if err != nil {
-			fmt.Printf("Restore failed : %v", err)
+		if err := client.RestoreBackup(config, backupFilePath); err != nil {
+			fmt.Println("Restore broken:", err)
 			return
 		}
-		fmt.Println("Database restored sucessfully")
+		fmt.Println("Database restored successfully")
 	},
 }
 
@@ -40,8 +43,8 @@ func init() {
 	restoreCmd.Flags().StringVarP(&user, "user", "u", "", "Database user")
 	restoreCmd.Flags().StringVarP(&password, "pass", "p", "", "Database password")
 	restoreCmd.Flags().StringVarP(&dbname, "db", "d", "", "Database name")
-	restoreCmd.Flags().StringVarP(&restoreFile, "file", "f", "", "Path to the SQL file to restore (Required)")
+	restoreCmd.Flags().StringVarP(&backupFilePath, "file", "f", "", "Target backup path (.sql.gz)")
+	
 	restoreCmd.MarkFlagRequired("file")
-
 	rootCmd.AddCommand(restoreCmd)
 }

@@ -5,6 +5,10 @@ import (
 	"db-backup-cli/pkg/storage"
 	"db-backup-cli/pkg/utils"
 	"fmt"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -18,15 +22,48 @@ var (
 
 var backupCmd = &cobra.Command{
 	Use:   "backup",
-	Short: "Perform a full database backup with execution metrics",
+	Short: "Perform a secure full database backup with execution metrics",
 	Run: func(cmd *cobra.Command, args []string) {
 		startTime := time.Now()
+
+		// 1. Establish runtime file lock
+		lockFile := filepath.Join(os.TempDir(), "dbbackup_operation.lock")
+		file, err := os.OpenFile(lockFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0666)
+		if err != nil {
+			fmt.Println("Concurrency Conflict: Another instance of this backup tool is actively executing.")
+			return
+		}
+
+		// Helper cleanup function
+		cleanupLock := func() {
+			file.Close()
+			os.Remove(lockFile)
+		}
+		defer cleanupLock()
+
+		// 2. Interrupt Interception: Catch Ctrl+C and clean up the lock file immediately
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+		go func() {
+			<-sigChan
+			fmt.Println("\n\nExecution interrupted by user. Cleaning up background file locks...")
+			cleanupLock()
+			os.Exit(1)
+		}()
+
+		// 3. Security: Securely resolve database credential strings
+		resolvedPassword, err := db.ResolvePassword(password)
+		if err != nil {
+			fmt.Println("Authentication Setup Error:", err)
+			return
+		}
+
 		client := &db.MysqlClient{}
-		config := db.BackupConfig{
+		config := db.MysqlBackupConfig{
 			Host:     host,
 			Port:     port,
 			Username: user,
-			Password: password,
+			Password: resolvedPassword,
 			DBname:   dbname,
 		}
 
@@ -49,6 +86,7 @@ var backupCmd = &cobra.Command{
 			fmt.Println("Compression failed:", err)
 			return
 		}
+		_ = os.Remove(result.Path)
 
 		store := &storage.LocalStorage{TargetDir: storageDir}
 		finalPath, err := store.Upload(compressedPath)
@@ -64,7 +102,6 @@ var backupCmd = &cobra.Command{
 		successMsg := fmt.Sprintf("Success! Backup archive safely stored at: %s (Time taken: %s)", finalPath, elapsed)
 		fmt.Println(successMsg)
 
-		// Optional Slack hook notification integration execution
 		if slackWebhook != "" {
 			utils.SendSlackNotification(slackWebhook, fmt.Sprintf("✅ Database Backup Job Complete for %s. Destination: %s", dbname, finalPath))
 		}
