@@ -2,9 +2,9 @@ name: Continuous Integration
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 jobs:
   build-and-test:
@@ -14,33 +14,33 @@ jobs:
       matrix:
         # Cross-compilation target testing environments
         os: [ubuntu-latest, macos-latest, windows-latest]
-        go-version: ['1.22', '1.23']
+        go-version: ["1.22", "1.23"]
 
     steps:
-    - name: Check out repository code
-      uses: actions/checkout@v4
+      - name: Check out repository code
+        uses: actions/checkout@v4
 
-    - name: Set up Go environment
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ matrix.go-version }}
-        cache: true # Automatically caches Go mod dependencies for speed
+      - name: Set up Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true # Automatically caches Go mod dependencies for speed
 
-    - name: Verify Go Format (ubuntu only)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        if [ -n "$(gofmt -l .)" ]; then
-          echo "The following files are not formatted correctly with gofmt:"
-          gofmt -l .
-          exit 1
-        fi
+      - name: Verify Go Format (ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "The following files are not formatted correctly with gofmt:"
+            gofmt -l .
+            exit 1
+          fi
 
-    - name: Download Go dependencies
-      run: go mod download
+      - name: Download Go dependencies
+        run: go mod download
 
-    - name: Run unit tests
-      run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+      - name: Run unit tests
+        run: go test -v -race "-coverprofile=coverage.txt" "-covermode=atomic" ./....
 
-    - name: Compile production binaries
-      run: |
-        go build -v -o dbbackup-${{ matrix.os }} .
+      - name: Compile production binaries
+        run: |
+          go build -v -o dbbackup-${{ matrix.os }} .
